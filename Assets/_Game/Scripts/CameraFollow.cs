@@ -8,13 +8,6 @@ public class CameraFollow : MonoBehaviour
     public Vector3 offset;
     public float speed = 2;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        //tim vi tri cua player
-        target = FindObjectOfType<Player>().transform;
-    }
-
     // Update is called once per frame
     void LateUpdate()
     {

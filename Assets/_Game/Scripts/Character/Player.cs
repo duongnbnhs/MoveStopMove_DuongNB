@@ -5,36 +5,64 @@ using UnityEngine;
 public class Player : Character
 {
     [SerializeField]
-    DynamicJoystick joystick;
+    FloatingJoystick joystick;
     [SerializeField]
-    Rigidbody rigidbody;
-    [SerializeField]
-    LayerMask layerMask;
+    Transform detectTarget;
     Vector3 moveDir;
-    protected override void Update()
+
+    protected override void Start()
     {
-        base.Update();
-        Moving();
+        base.Start();
+        isPlayer = true;
     }
-    void Moving()
+    protected void Update()
+    {
+        ChangeCharactWeapon();
+        if (!isDead)
+        {
+            if (isMoving)
+            {
+                ChangeAnim(StringHelper.ANIM_RUN);
+            }
+            if (canAttack && !isMoving)
+            {
+                Attack();
+            }
+            if (!canAttack && !isMoving)
+            {
+                ChangeAnim(StringHelper.ANIM_IDLE);
+            }
+            Move();
+            if (target != GetEnemy())
+            {
+                if (target != null)
+                {
+                    detectTarget.gameObject.SetActive(false);
+                    canAttack = false;
+                }
+                target = GetEnemy();
+                if (target != null)
+                {
+                    detectTarget.SetParent(target);
+                    detectTarget.localPosition = new Vector3(0, 0.501f, 0);
+                    detectTarget.gameObject.SetActive(true);
+                    canAttack = true;
+                }
+            }
+        }
+    }
+    protected void Move()
     {
         if (joystick.Horizontal != 0 || joystick.Vertical != 0)
         {
-            moveDir = new Vector3(joystick.Horizontal * moveSpeed, rigidbody.velocity.y, joystick.Vertical * moveSpeed);
-            /*RaycastHit hit;
-            if (Physics.Raycast(transform.position, Vector3.down, out hit, 4f, layerMask))
-            {
-                Debug.DrawLine(transform.position, hit.point, Color.blue);
-                Vector3 hitPoint = hit.point;
-                Vector3 nextPoint = transform.position + moveDir * Time.deltaTime * moveSpeed;
-                transform.position = new Vector3(nextPoint.x, hitPoint.y, nextPoint.z);
-            }*/
-            rigidbody.velocity = moveDir;
-            characterVisualize.transform.rotation = Quaternion.LookRotation(moveDir);
+            moveDir = Vector3.forward * joystick.Vertical + Vector3.right * joystick.Horizontal;
+            rb.velocity = moveDir * moveSpeed;
+            characterVisualize.rotation = Quaternion.LookRotation(moveDir);
             isMoving = true;
         }
         else
         {
+            rb.velocity = Vector3.zero;
             isMoving = false;
         }
     }

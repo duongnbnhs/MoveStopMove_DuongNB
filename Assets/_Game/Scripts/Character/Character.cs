@@ -1,171 +1,134 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
-public class Character : MonoBehaviour
+public class Character : MonoBehaviour, IHit
 {
-
     [SerializeField]
-    Animator anim;
-    [SerializeField]
-    List<Transform> allEnemiesInLevel;
-    [SerializeField]
-    List<Transform> enemiesInRange;
-    [SerializeField]
-    protected Transform enemy;
+    protected Animator anim;
     [SerializeField]
     protected Transform characterVisualize;
+    //[SerializeField]
+    public Transform handWeaponPos;
     [SerializeField]
-    protected GameObject weapon;
+    protected AttackEnemy attack;
     [SerializeField]
-    protected Transform weaponOnHand;
+    internal Transform target;
+    [SerializeField]
+    internal Transform rangeCircle;
     [SerializeField]
     protected float attackRange;
     [SerializeField]
     protected float moveSpeed;
     [SerializeField]
-    protected Transform throwPos;
-    [SerializeField]
-    List<float> enemiesInRangeDistance;
-    [SerializeField]
-    Level level;
-    [SerializeField]
-    protected GameObject bullet;
-    protected GameObject flyingWeapon;
-    protected bool isMoving;
-    protected bool canAttack;
+    protected LayerMask layer;
+
+    internal Transform tf;
+    protected Rigidbody rb;
     protected string currentAnimName;
-    protected float attackTime;
-    protected bool isAttackEnemy;
-    protected Transform tf;
-    private void Awake()
-    {
-        tf = GetComponent<Transform>();
-    }
-    // Start is called before the first frame update
-    void Start()
+    protected WeaponType curentWeaponType;
+    protected bool isPlayer;
+
+    public bool isMoving;
+    public bool canAttack;
+    public bool isDead;
+    public WeaponType weaponType;
+
+    public PoolType poolType;
+    public GameObject weaponPrefabs;
+    public int score;
+
+    float atkTime;
+
+    protected virtual void Start()
     {
         OnInit();
     }
-    public void OnInit()
+    protected virtual void OnInit()
     {
-        moveSpeed = 3f;
-        attackRange = 4f;
-        attackTime = 0;
-        weapon = Instantiate(weapon, weapon.transform.position, weapon.transform.rotation);
-        weapon.SetActive(true);
-        weapon.transform.SetParent(weaponOnHand);
-        allEnemiesInLevel = level.allCharactersInLevel;
-        isAttackEnemy = false;
+        tf = transform;
+        rb = GetComponent<Rigidbody>();
+        isDead = false;
+        canAttack = false;
+        isMoving = false;
+        target = null;
+        curentWeaponType = weaponType;
+        ChangeWeapon.Ins.ChangeCharacterWeapon(this, weaponType);
+        score = 0;
     }
-    protected virtual void Update()
+    protected virtual void OnDespawn()
     {
-        GetAllEnemiesInRange();
-        canAttack = IsEnemyInRange();
-        if (isMoving)
+        gameObject.SetActive(false);
+    }
+    internal void Attack()
+    {
+        tf.rotation = Quaternion.LookRotation(target.position - tf.position);
+        ChangeAnim(StringHelper.ANIM_ATTACK);
+        //attack.Attack(target.position);
+        atkTime += Time.deltaTime;
+        if (atkTime > 0.3f)
         {
-            ChangeAnim(StringHelper.ANIM_RUN);
-            isAttackEnemy = false;
+            atkTime = 0;
+            attack.Attack(target.position);
         }
-        if (canAttack && !isMoving)
+    }
+    internal void ChangeCharactWeapon()
+    {
+        if (curentWeaponType != weaponType)
         {
-            if (enemy.gameObject.activeInHierarchy)
+            curentWeaponType = weaponType;
+            ChangeWeapon.Ins.ChangeCharacterWeapon(this, weaponType);
+        }
+    }
+    internal Transform GetEnemy()
+    {
+        Transform target = null;
+        Collider[] colliders = Physics.OverlapSphere(tf.position, attackRange, layer);
+        foreach (Collider collider in colliders)
+        {
+            if (collider.gameObject.activeInHierarchy)
             {
-                characterVisualize.rotation = Quaternion.LookRotation(enemy.position - tf.position);
-                attackTime += Time.deltaTime;
-                ChangeAnim(StringHelper.ANIM_ATTACK);
-                if (attackTime > 0.5f)
+                Transform trans = collider.transform;
+                Character charac = collider.GetComponent<Character>();
+                if (trans == tf || charac.isDead) continue;
+                if (target == null)
                 {
-                    attackTime = 0;
-                    InstantiateWeapon();
-                    weapon.SetActive(false);
-                    isAttackEnemy = true;
+                    target = trans;
+                }
+                else
+                {
+                    if (Vector3.Distance(tf.position, trans.position) < Vector3.Distance(tf.position, target.position))
+                    {
+                        target = trans;
+                    }
                 }
             }
-        }
-        if (!isMoving)
-        {
-            ChangeAnim(StringHelper.ANIM_IDLE);
-        }
 
-
-        //PlayAnim();
-    }
-    public void OnDespawn()
-    {
-        Destroy(gameObject);
-    }
-    protected void GetAllEnemiesInRange()
-    {
-        enemiesInRange.Clear();
-        enemiesInRangeDistance.Clear();
-        foreach (var cEnemy in allEnemiesInLevel)
-        {
-            if (cEnemy.gameObject.activeInHierarchy)
-            {
-                var dis = Vector3.Distance(tf.position, cEnemy.position);
-                if (dis < attackRange)
-                {
-                    enemiesInRange.Add(cEnemy);
-                    enemiesInRangeDistance.Add(dis);
-                }
-            }
         }
-        if (enemiesInRange.Count > 0)
-        {
-            ChooseTarget();
-        }
-
+        return target;
     }
-    protected void ChooseTarget()
+    internal void ChangeAnim(string animName)
     {
-        var index = enemiesInRangeDistance.IndexOf(enemiesInRangeDistance.Min());
-        enemy = enemiesInRange[index];
-
-    }
-
-    protected bool IsEnemyInRange()
-    {
-        if (enemy != null)
-        {
-            return true;
-        }
-        else return false;
-    }
-    protected void InstantiateWeapon()
-    {
-        flyingWeapon = Instantiate(weapon);
-        flyingWeapon.transform.position = throwPos.position;
-        flyingWeapon.SetActive(true);
-        ThrowWeapon();
-    }
-    protected void ThrowWeapon()
-    {
-        Vector3 enemyPos = enemy.position;
-        var flyRid = flyingWeapon.AddComponent(typeof(Rigidbody)) as Rigidbody;
-
-        flyRid.useGravity = false;
-        flyRid.velocity = enemyPos - flyingWeapon.transform.position;
-        var coll = flyingWeapon.AddComponent<CapsuleCollider>() as CapsuleCollider;
-        coll.isTrigger = true;
-    }
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag(StringHelper.WEAPON_TAG))
-        {
-            OnDespawn();
-        }
-    }
-    protected void ChangeAnim(string animName)
-    {
-        /*if (currentAnimName != animName)
+        if (currentAnimName != animName)
         {
             anim.ResetTrigger(animName);
             currentAnimName = animName;
             anim.SetTrigger(currentAnimName);
-        }*/
-        anim.ResetTrigger(animName);
-        anim.SetTrigger(animName);
+        }
+    }
+    void ScaleUp()
+    {
+        attackRange *= 1.5f;
+        rangeCircle.localScale = new Vector3(rangeCircle.localScale.x *1.5f, rangeCircle.localScale.y * 1.5f, rangeCircle.localScale.z * 1.5f);
+    }
+    public void OnHit(Character character)
+    {
+        if (!isPlayer)
+        {
+            SpawnBot.Ins.botAlive--;
+        }
+        isDead = true;
+        ChangeAnim(StringHelper.ANIM_DEAD);
+        Invoke(nameof(OnDespawn), 2f);
     }
 }
