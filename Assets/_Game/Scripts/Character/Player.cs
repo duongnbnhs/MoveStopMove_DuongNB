@@ -5,7 +5,7 @@ using UnityEngine;
 public class Player : Character
 {
     [SerializeField]
-    FloatingJoystick joystick;
+    JoystickControl joystick;
     [SerializeField]
     Transform detectTarget;
     Vector3 moveDir;
@@ -53,10 +53,10 @@ public class Player : Character
     }
     protected void Move()
     {
-        if (joystick.Horizontal != 0 || joystick.Vertical != 0)
+        if (Input.GetMouseButton(0))
         {
-            moveDir = Vector3.forward * joystick.Vertical + Vector3.right * joystick.Horizontal;
-            rb.velocity = moveDir * moveSpeed;
+            moveDir = JoystickControl.direct * moveSpeed + rb.velocity.y * Vector3.up;
+            rb.velocity = moveDir;
             characterVisualize.rotation = Quaternion.LookRotation(moveDir);
             isMoving = true;
         }
